@@ -1,135 +1,172 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>공지사항</title>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Noto Sans KR', sans-serif; margin: 0; }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel">
-    console.log('notices.jsp 스크립트 시작');
-
-    function Navbar() {
-      return (
-        <nav className="bg-gray-800 text-white p-4 sticky top-0 z-10">
-          <div className="container mx-auto flex justify-between items-center">
-            <h1 className="text-2xl font-bold">방송부</h1>
-            <div className="flex items-center space-x-6">
-              <ul className="flex space-x-6">
-                <li><a href="index.jsp#home" className="hover:text-gray-300">홈</a></li>
-                <li><a href="index.jsp#about" className="hover:text-gray-300">소개</a></li>
-                <li><a href="notices.jsp" className="hover:text-gray-300">공지사항</a></li>
-                <li><a href="index.jsp#programs" className="hover:text-gray-300">프로그램</a></li>
-                <li><a href="index.jsp#departments" className="hover:text-gray-300">부서</a></li>
-                <li><a href="index.jsp#contact" className="hover:text-gray-300">연락처</a></li>
-              </ul>
-              <a href="admin_login.jsp" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                관리자 로그인
-              </a>
-            </div>
-          </div>
-        </nav>
-      );
+<%@ page import="java.sql.*, java.util.*" %>
+<%
+    int pageSize = 10; // 한 페이지에 보여줄 공지사항 수
+    int pageNumber = 1; // 기본 페이지 번호
+    String searchValue = request.getParameter("searchValue"); // 검색어
+    if (request.getParameter("page") != null) {
+        try {
+            pageNumber = Integer.parseInt(request.getParameter("page"));
+        } catch (NumberFormatException e) {
+            pageNumber = 1;
+        }
     }
 
-    function NoticeList() {
-      const notices = <%= request.getAttribute("notices") != null ? request.getAttribute("notices") : "[{title: '2025년 4월 방송부원 모집', content: '4월 20일까지 신청서를 제출해주세요.'}, {title: '봄 축제 방송 일정', content: '5월 10일, 축제 현장을 생중계합니다.'}]" %>;
-      return (
-        <section className="py-16 bg-gray-100">
-          <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold mb-8 text-center">공지사항</h2>
-            <ul className="max-w-3xl mx-auto space-y-4">
-              {notices.map((notice, index) => (
-                <li key={index} className="bg-white p-4 rounded-lg shadow-md">
-                  <h3 className="text-lg font-semibold">{notice.title}</h3>
-                  <p className="text-gray-600">{notice.content}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      );
-    }
-
-    function NoticeForm() {
-      const isAdmin = <%= session.getAttribute("admin") != null %>;
-      if (!isAdmin) return null;
-      return (
-        <section className="py-16">
-          <div className="container mx-auto px-4 max-w-md">
-            <h2 className="text-2xl font-bold mb-6 text-center">공지사항 작성</h2>
-            <form action="/notices" method="POST">
-              <div className="mb-4">
-                <input
-                  type="text"
-                  name="title"
-                  placeholder="제목"
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div className="mb-6">
-                <textarea
-                  name="content"
-                  placeholder="내용"
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  rows="5"
-                  required
-                ></textarea>
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-green-600 text-white py-3 rounded-md hover:bg-green-700 transition-colors"
-                style={{ backgroundColor: '#03C75A' }}
-              >
-                작성
-              </button>
-            </form>
-          </div>
-        </section>
-      );
-    }
-
-    function Footer() {
-      return (
-        <footer className="bg-gray-800 text-white py-8">
-          <div className="container mx-auto px-4 text-center">
-            <p>© 2025 방송부. All rights reserved.</p>
-          </div>
-        </footer>
-      );
-    }
-
-    function App() {
-      console.log('notices.jsp App 렌더링');
-      return (
-        <div>
-          <Navbar />
-          <NoticeList />
-          <NoticeForm />
-          <Footer />
-        </div>
-      );
-    }
+    Connection conn = null;
+    PreparedStatement pstmt = null;
+    ResultSet rs = null;
+    List<Map<String, Object>> noticeList = new ArrayList<>();
+    int totalCount = 0;
+    int totalPages = 0;
 
     try {
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<App />);
-      console.log('notices.jsp React 렌더링 완료');
-    } catch (e) {
-      console.error('notices.jsp React 렌더링 오류:', e);
+        String dbUrl = "jdbc:mysql://localhost:3306/broadcasting_club?useSSL=false&serverTimezone=UTC";
+        String dbUser = "root";
+        String dbPassword = "12345";
+        Class.forName("com.mysql.cj.jdbc.Driver");
+        conn = DriverManager.getConnection(dbUrl, dbUser, dbPassword);
+
+        // 전체 공지사항 수
+        String countSql = searchValue != null && !searchValue.isEmpty() ?
+            "SELECT COUNT(*) AS total FROM notices WHERE title LIKE ?" :
+            "SELECT COUNT(*) AS total FROM notices";
+        pstmt = conn.prepareStatement(countSql);
+        if (searchValue != null && !searchValue.isEmpty()) {
+            pstmt.setString(1, "%" + searchValue + "%");
+        }
+        rs = pstmt.executeQuery();
+        if (rs.next()) {
+            totalCount = rs.getInt("total");
+        }
+        rs.close();
+        pstmt.close();
+
+        totalPages = (int) Math.ceil((double) totalCount / pageSize);
+        int startRow = (pageNumber - 1) * pageSize;
+
+        // 현재 페이지 공지사항 조회
+        String sql = searchValue != null && !searchValue.isEmpty() ?
+            "SELECT id, title, content, created_at, admin_id FROM notices WHERE title LIKE ? ORDER BY created_at DESC LIMIT ?, ?" :
+            "SELECT id, title, content, created_at, admin_id FROM notices ORDER BY created_at DESC LIMIT ?, ?";
+        pstmt = conn.prepareStatement(sql);
+        if (searchValue != null && !searchValue.isEmpty()) {
+            pstmt.setString(1, "%" + searchValue + "%");
+            pstmt.setInt(2, startRow);
+            pstmt.setInt(3, pageSize);
+        } else {
+            pstmt.setInt(1, startRow);
+            pstmt.setInt(2, pageSize);
+        }
+        rs = pstmt.executeQuery();
+
+        while (rs.next()) {
+            Map<String, Object> notice = new HashMap<>();
+            notice.put("id", rs.getLong("id"));
+            notice.put("title", rs.getString("title"));
+            notice.put("content", rs.getString("content"));
+            notice.put("created_at", rs.getTimestamp("created_at"));
+            notice.put("admin_id", rs.getLong("admin_id"));
+            noticeList.add(notice);
+        }
+        request.setAttribute("notices", noticeList);
+        request.setAttribute("totalPages", totalPages);
+        request.setAttribute("currentPage", pageNumber);
+        request.setAttribute("searchValue", searchValue);
+    } catch (Exception e) {
+        e.printStackTrace();
+        session.setAttribute("error", "공지사항 목록 조회 중 오류 발생: " + e.getMessage());
+    } finally {
+        if (rs != null) try { rs.close(); } catch (SQLException e) {}
+        if (pstmt != null) try { pstmt.close(); } catch (SQLException e) {}
+        if (conn != null) try { conn.close(); } catch (SQLException e) {}
     }
-  </script>
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<jsp:include page="header.jsp">
+    <jsp:param name="pageTitle" value="공지사항" />
+</jsp:include>
+<body>
+    <main>
+        <section class="search-form">
+            <form action="notices.jsp" method="get">
+                <input type="text" name="searchValue" placeholder="공지사항 제목 검색" aria-label="공지사항 제목 검색" value="<c:out value='${searchValue}'/>">
+                <button type="submit">검색</button>
+            </form>
+        </section>
+
+        <section class="banner">
+            <h1>공지사항</h1>
+        </section>
+
+        <section class="popular-guides">
+            <h2>공지사항 목록</h2>
+            <div class="guide-list">
+                <c:choose>
+                    <c:when test="${empty notices}">
+                        <p>검색 결과가 없습니다.</p>
+                    </c:when>
+                    <c:otherwise>
+                        <c:forEach var="notice" items="${notices}">
+                            <div class="guide">
+                                <h3>
+                                    <a href="notice_view.jsp?id=${notice.id}"><c:out value="${notice.title}"/></a>
+                                    <c:if test="${not empty sessionScope.admin_id}">
+                                        <a href="notice_delete.jsp?id=${notice.id}" class="delete-button" onclick="return confirm('정말로 삭제하시겠습니까?');">삭제</a>
+                                    </c:if>
+                                </h3>
+                                <p>작성일: <c:out value="${notice.created_at}"/></p>
+                            </div>
+                        </c:forEach>
+                    </c:otherwise>
+                </c:choose>
+            </div>
+        </section>
+
+        <!-- 페이지 네비게이션 -->
+        <div class="pagination">
+            <c:if test="${currentPage > 1}">
+                <a href="notices.jsp?page=${currentPage - 1}&searchValue=${searchValue}">이전</a>
+            </c:if>
+            <c:forEach begin="1" end="${totalPages}" var="i">
+                <a href="notices.jsp?page=${i}&searchValue=${searchValue}" <c:if test="${i == currentPage}">class="active"</c:if>>${i}</a>
+            </c:forEach>
+            <c:if test="${currentPage < totalPages}">
+                <a href="notices.jsp?page=${currentPage + 1}&searchValue=${searchValue}">다음</a>
+            </c:if>
+        </div>
+
+        <!-- 공지사항 작성 버튼 -->
+        <div class="post-button">
+            <c:if test="${not empty sessionScope.admin_id}">
+                <a class="circle-button" href="notice_create.jsp">공지사항 작성</a>
+            </c:if>
+        </div>
+    </main>
+
+    <jsp:include page="footer.jsp"/>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; margin: 0; }
+        .search-form { text-align: center; margin: 20px 0; }
+        .search-form input[type="text"] { padding: 8px; width: 300px; }
+        .search-form button { padding: 8px 16px; background-color: #03C75A; color: white; border: none; cursor: pointer; }
+        .banner { text-align: center; padding: 20px; background-color: #f0f0f0; }
+        .popular-guides { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .guide { border-bottom: 1px solid #ddd; padding: 10px 0; }
+        .guide h3 { margin: 0; font-size: 1.2em; display: flex; justify-content: space-between; align-items: center; }
+        .guide p { margin: 5px 0; color: #555; }
+        .delete-button { padding: 5px 10px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 4px; font-size: 0.9em; }
+        .delete-button:hover { background-color: #c82333; }
+        .pagination { text-align: center; margin: 20px 0; }
+        .pagination a { margin: 0 5px; padding: 5px 10px; text-decoration: none; color: #333; }
+        .pagination a.active { background-color: #03C75A; color: white; }
+        .pagination a:hover { background-color: #ddd; }
+        .post-button { text-align: center; margin: 20px 0; }
+        .circle-button { display: inline-block; padding: 10px 20px; background-color: #03C75A; color: white; text-decoration: none; border-radius: 20px; }
+        .circle-button:hover { background-color: #028a3f; }
+    </style>
 </body>
 </html>

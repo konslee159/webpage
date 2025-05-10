@@ -6,7 +6,7 @@ String username = request.getParameter("username");
 String password = request.getParameter("password");
 String dbUrl = "jdbc:mysql://localhost:3306/broadcasting_club?useSSL=false&serverTimezone=UTC";
 String dbUser = "root";
-String dbPassword = "12345"; // 실제 MySQL 비밀번호로 변경
+String dbPassword = "12345";
 
 Connection conn = null;
 PreparedStatement stmt = null;
@@ -25,18 +25,22 @@ try {
             // 세션 설정
             session.setAttribute("admin_id", rs.getLong("id"));
             session.setAttribute("admin_username", rs.getString("username"));
+            System.out.println("로그인 성공: admin_id=" + rs.getLong("id") + ", admin_username=" + rs.getString("username"));
             // /BroadcastingClub/notices로 리다이렉션
             response.sendRedirect("notices.jsp");
         } else {
             session.setAttribute("error", "잘못된 아이디 또는 비밀번호입니다.");
+            System.out.println("로그인 실패: 잘못된 비밀번호");
             response.sendRedirect("admin_login.jsp");
         }
     } else {
         session.setAttribute("error", "잘못된 아이디 또는 비밀번호입니다.");
+        System.out.println("로그인 실패: 사용자를 찾을 수 없음");
         response.sendRedirect("admin_login.jsp");
     }
 } catch (Exception e) {
     session.setAttribute("error", "로그인 처리 중 오류 발생: " + e.getMessage());
+    System.out.println("로그인 오류: " + e.getMessage());
     response.sendRedirect("admin_login.jsp");
     e.printStackTrace();
 } finally {
